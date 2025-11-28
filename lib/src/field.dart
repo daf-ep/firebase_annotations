@@ -104,6 +104,31 @@ class GeoField {
   const GeoField();
 }
 
+/// {@template filter_field_annotation}
+/// Annotation applied to a model field to indicate that it participates
+/// in the filtering system.
+///
+/// Fields annotated with `@FilterField()` are automatically detected
+/// by the code generator. They are included in the set of filterable
+/// properties for the corresponding model, allowing the generator to
+/// create strongly-typed filter helpers (e.g. equality, ranges, sets)
+/// based on the field's type.
+///
+/// ### Usage
+/// ```dart
+/// class Product {
+///   @FilterField()
+///   final String category;
+///
+///   @FilterField()
+///   final double price;
+/// }
+/// ```
+/// {@endtemplate}
+class FilterField {
+  const FilterField();
+}
+
 /// {@template from_map_annotation}
 /// Annotation helper used to configure how a field is handled
 /// during `fromMap` code generation.
