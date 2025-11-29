@@ -41,6 +41,21 @@
 /// ```
 /// {@endtemplate}
 class Field {
+  /// {@template field_annotation.key}
+  /// Optional override for the serialized field key used in generated methods.
+  ///
+  /// When `null`, the code generator assigns an automatic key based on the
+  /// field name (e.g. `__fbs__<fieldName>`).
+  ///
+  /// When provided, this value replaces the default key and is used wherever
+  /// the field is referenced in generated code (e.g. `fromMap`, `toMap`,
+  /// query helpers, or filter definitions).
+  ///
+  /// This is useful when the stored key differs from the Dart field name,
+  /// or when maintaining backward compatibility with an existing schema.
+  /// {@endtemplate}
+  final String? key;
+
   /// {@template field_annotation.is_document_id}
   /// Indicates that this field holds the document ID of the Firestore document.
   ///
@@ -107,6 +122,7 @@ class Field {
   final bool isFilterElement;
 
   const Field({
+    this.key,
     this.documentId = false,
     this.fromMap = const FromMap(fromMap: true),
     this.copyWith = true,
@@ -211,10 +227,10 @@ class DefaultValue {
   /// The raw Dart expression for the default value.
   ///
   /// Examples:
-  /// - `"0"`
-  /// - `"false"`
-  /// - `"MyEnum.defaultValue"`
-  /// - `"Store(id: \"123\", title: \"Test\")"`
+  /// - `0`
+  /// - `false`
+  /// - `MyEnum.defaultValue`
+  /// - `Store(id: "123", title: "Test")`
   ///
   /// This expression is inserted verbatim into generated Dart code.
   /// {@endtemplate}
