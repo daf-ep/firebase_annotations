@@ -49,6 +49,13 @@ class Field {
   /// {@endtemplate}
   final bool documentId;
 
+  /// {@template field_annotation.skip_copy_with}
+  /// Whether the field should be skipped in the generated `copyWith` method.
+  ///
+  /// If `true`, the field will not be included as a named parameter in `copyWith`.
+  /// {@endtemplate}
+  final bool copyWith;
+
   /// {@template field_annotation.skip_from_map}
   /// Whether the field should be skipped in the generated `fromMap` method.
   ///
@@ -57,13 +64,6 @@ class Field {
   /// {@endtemplate}
   final FromMap fromMap;
 
-  /// {@template field_annotation.skip_copy_with}
-  /// Whether the field should be skipped in the generated `copyWith` method.
-  ///
-  /// If `true`, the field will not be included as a named parameter in `copyWith`.
-  /// {@endtemplate}
-  final bool copyWith;
-
   /// {@template field_annotation.skip_to_map}
   /// Whether the field should be skipped in the generated `toMap` method.
   ///
@@ -71,62 +71,49 @@ class Field {
   /// {@endtemplate}
   final bool toMap;
 
+  /// {@template field_annotation.is_geo_spatial}
+  /// Indicates whether this field represents a **geospatial value**.
+  ///
+  /// When `true`, the code generator applies the following rules:
+  ///
+  /// - The field is expected to be an **object containing two doubles**:
+  ///   `lat` and `lng`.
+  /// - If the field does not match this expected shape (missing keys or
+  ///   incorrect types), it will be **skipped automatically** during
+  ///   generation to avoid producing invalid geospatial logic.
+  /// - A geospatial-enabled field allows the system to generate helper
+  ///   functions or mapping code used for performing **geo-queries**
+  ///   (e.g. distance filtering, bounding-box search, radius queries).
+  ///
+  /// This flag is intended for models that participate in geospatial
+  /// indexing or search.
+  /// {@endtemplate}
+  final bool isGeoSpatial;
+
+  /// {@template field_annotation.is_filter_element}
+  /// Marks this field as a **filterable element**.
+  ///
+  /// When `true`, the code generator:
+  ///
+  /// - Adds the field to a dedicated list of queryable/filterable fields.
+  /// - Allows search or query builders to reference this field when constructing
+  ///   filtering expressions (e.g. `where("status")`, `where("age")`, etc.).
+  /// - Ensures the field is registered properly so that generated query
+  ///   interfaces can expose type-safe filtering helpers.
+  ///
+  /// This flag is used for models where certain fields participate in
+  /// application-level search, filtering, or indexing logic.
+  /// {@endtemplate}
+  final bool isFilterElement;
+
   const Field({
     this.documentId = false,
     this.fromMap = const FromMap(fromMap: true),
     this.copyWith = true,
     this.toMap = true,
+    this.isGeoSpatial = false,
+    this.isFilterElement = false,
   });
-}
-
-/// {@template geo_field_annotation}
-/// Annotation applied to a model class or field to indicate that it participates
-/// in the geospatial indexing system.
-///
-/// This annotation is used to mark a model as containing geolocation data.
-/// It enables the code generator to automatically detect fields annotated
-/// with [GeoLocationField] and [GeoHashField], and to generate the required
-/// helpers for geo-queries (geohash extraction, distance computation, etc.).
-///
-/// ### Usage
-/// ```dart
-/// @GeoField()
-/// class StoreLocation {
-///   @GeoLocationField()
-///   final Location coordinates;
-///
-///   @GeoHashField()
-///   final String geohash;
-/// }
-/// ```
-/// {@endtemplate}
-class GeoField {
-  const GeoField();
-}
-
-/// {@template filter_field_annotation}
-/// Annotation applied to a model field to indicate that it participates
-/// in the filtering system.
-///
-/// Fields annotated with `@FilterField()` are automatically detected
-/// by the code generator. They are included in the set of filterable
-/// properties for the corresponding model, allowing the generator to
-/// create strongly-typed filter helpers (e.g. equality, ranges, sets)
-/// based on the field's type.
-///
-/// ### Usage
-/// ```dart
-/// class Product {
-///   @FilterField()
-///   final String category;
-///
-///   @FilterField()
-///   final double price;
-/// }
-/// ```
-/// {@endtemplate}
-class FilterField {
-  const FilterField();
 }
 
 /// {@template from_map_annotation}
@@ -156,17 +143,216 @@ class FromMap {
   final bool fromMap;
 
   /// {@template from_map_annotation.default_value}
-  /// The default value to use if the field is not present in the source map.
+  /// Defines the default value to use when the field is missing from the
+  /// source map during `fromMap` generation.
   ///
-  /// Must be a Dart expression written as a string. This is injected directly
-  /// into the generated `fromMap` code.
+  /// This value must be provided as a [`DefaultValue`], which encapsulates:
+  /// - a raw Dart expression (`value`)
+  /// - its semantic kind (`kind`)
   ///
-  /// Example: `"0"`, `"false"`, `"\"anonymous\""`
+  /// The expression contained inside the [`DefaultValue`] instance is
+  /// inserted **verbatim** into the generated `fromMap` method. It must
+  /// therefore represent a **valid Dart literal or constructor expression**.
+  ///
+  /// Examples:
+  /// ```dart
+  /// DefaultValue.int_(0)
+  /// DefaultValue.boolean_(false)
+  /// DefaultValue.string_("anonymous")
+  /// DefaultValue.enumeration_(MyEnum.value)
+  /// DefaultValue.object_(Store(id: "123", title: "Test"))
+  /// ```
+  ///
+  /// If `null`, no default value is injected and the field is left untouched
+  /// when absent from the source map.
   /// {@endtemplate}
-  final String? defaultValue;
+  final DefaultValue? defaultValue;
 
   /// Creates a new [FromMap] configuration.
   ///
   /// Defaults to including the field (`fromMap = true`) and no default value.
   const FromMap({this.fromMap = true, this.defaultValue});
+}
+
+/// {@template default_value_kind}
+/// Enumerates the different kinds of default values that can be assigned
+/// to a field during code generation.
+///
+/// Each value represents the semantic category of the provided default,
+/// allowing the generator to handle serialization and literal injection
+/// correctly based on type.
+///
+/// Available kinds:
+/// - `string`        → A string literal
+/// - `double`        → A double literal
+/// - `integer`       → An integer literal
+/// - `boolean`       → A boolean literal
+/// - `nil`           → A `null` literal
+/// - `enumeration`   → An enum value literal (e.g. `MyEnum.value`)
+/// - `object`        → A Dart object literal implementing `Literalizable`
+/// {@endtemplate}
+enum DefaultValueKind { string, double, integer, boolean, nil, enumeration, object }
+
+/// {@template default_value}
+/// Represents a strongly-typed default value used during code generation.
+///
+/// This class stores:
+/// - a raw Dart expression as a string (`value`)
+/// - its semantic category (`kind`)
+///
+/// It allows the generator to safely inject valid Dart literals inside
+/// synthesized methods such as `fromMap`, `toMap`, or constructors.
+///
+/// Instances must always represent **valid Dart expressions**, since the
+/// string is inserted directly into generated code without transformation.
+/// {@endtemplate}
+class DefaultValue {
+  /// {@template default_value.value}
+  /// The raw Dart expression for the default value.
+  ///
+  /// Examples:
+  /// - `"0"`
+  /// - `"false"`
+  /// - `"MyEnum.defaultValue"`
+  /// - `"Store(id: \"123\", title: \"Test\")"`
+  ///
+  /// This expression is inserted verbatim into generated Dart code.
+  /// {@endtemplate}
+  final String value;
+
+  /// {@template default_value.kind}
+  /// The semantic category of the default value.
+  ///
+  /// Used by the generator to determine how the literal should be treated
+  /// or validated when injecting it into generated output.
+  /// {@endtemplate}
+  final DefaultValueKind kind;
+
+  /// {@template default_value.private_ctor}
+  /// Internal constructor used by factory helpers to create a typed
+  /// default value. Not intended for direct external construction.
+  /// {@endtemplate}
+  DefaultValue._(this.value, this.kind);
+
+  /// {@template default_value.string}
+  /// Creates a string default value literal.
+  ///
+  /// Example:
+  /// ```dart
+  /// DefaultValue.string_("hello");
+  /// ```
+  /// {@endtemplate}
+  static string_(String value) => DefaultValue._(value, DefaultValueKind.string);
+
+  /// {@template default_value.double}
+  /// Creates a double default value literal.
+  ///
+  /// Example:
+  /// ```dart
+  /// DefaultValue.double_(3.14);
+  /// ```
+  /// {@endtemplate}
+  static double_(double value) => DefaultValue._("$value", DefaultValueKind.double);
+
+  /// {@template default_value.integer}
+  /// Creates an integer default value literal.
+  ///
+  /// Example:
+  /// ```dart
+  /// DefaultValue.int_(42);
+  /// ```
+  /// {@endtemplate}
+  static int_(int value) => DefaultValue._("$value", DefaultValueKind.integer);
+
+  /// {@template default_value.boolean}
+  /// Creates a boolean default value literal.
+  ///
+  /// Example:
+  /// ```dart
+  /// DefaultValue.boolean_(true);
+  /// ```
+  /// {@endtemplate}
+  static boolean_(bool value) => DefaultValue._("$value", DefaultValueKind.boolean);
+
+  /// {@template default_value.null}
+  /// Creates a `null` literal default value.
+  ///
+  /// Example:
+  /// ```dart
+  /// DefaultValue.null_();
+  /// ```
+  /// {@endtemplate}
+  static null_() => DefaultValue._("null", DefaultValueKind.nil);
+
+  /// {@template default_value.enumeration}
+  /// Creates an enum default value literal.
+  ///
+  /// The provided enum instance must not override `toString()`, since its
+  /// Dart literal form is reconstructed from the enum's `toString()` output.
+  ///
+  /// Example:
+  /// ```dart
+  /// DefaultValue.enumeration_(MyEnum.value);
+  /// // produces "MyEnum.value"
+  /// ```
+  /// {@endtemplate}
+  static enumeration_(Enum value) => DefaultValue._("$value", DefaultValueKind.enumeration);
+
+  /// {@template default_value.object}
+  /// Creates a default value literal from an object that implements
+  /// [Literalizable].
+  ///
+  /// The object's `toLiteral()` method must return a valid Dart expression
+  /// representing a constructor call or static reference.
+  ///
+  /// Example:
+  /// ```dart
+  /// class Store implements Literalizable {
+  ///   final String id;
+  ///   const Store(this.id);
+  ///
+  ///   @override
+  ///   String toLiteral() => 'Store("$id")';
+  /// }
+  ///
+  /// DefaultValue.object_(Store("123"));
+  /// // produces 'Store("123")'
+  /// ```
+  /// {@endtemplate}
+  static object_(Literalizable value) => DefaultValue._(value.toLiteral(), DefaultValueKind.object);
+}
+
+/// {@template literalizable}
+/// Contract for objects that can convert themselves into a valid Dart
+/// literal representation.
+///
+/// Implementations must return a string containing a Dart expression that
+/// can be inserted directly into generated code.
+///
+/// Typical use-cases:
+/// - code generation
+/// - static default object values
+///
+/// Example:
+/// ```dart
+/// class Store implements Literalizable {
+///   final String id;
+///   final String title;
+///
+///   const Store({required this.id, required this.title});
+///
+///   @override
+///   String toLiteral() =>
+///       'Store(id: "$id", title: "$title")';
+/// }
+/// ```
+/// {@endtemplate}
+abstract class Literalizable {
+  /// {@template literalizable.to_literal}
+  /// Converts the current instance into a Dart literal string representation.
+  ///
+  /// The returned string must be a **valid Dart expression**, as it will be
+  /// inserted directly into generated code without escaping or quoting.
+  /// {@endtemplate}
+  String toLiteral();
 }
