@@ -1,3 +1,7 @@
+# 1.0.6
+
+- Added comprehensive README documentation explaining how to use the package annotations.
+
 # 1.0.5
 
 # 1.0.4
