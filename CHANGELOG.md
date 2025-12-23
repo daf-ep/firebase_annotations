@@ -1,3 +1,7 @@
+# 1.0.8
+
+- Added a README file to the `example/` directory to document and link available examples.
+
 # 1.0.7
 
 - Added usage examples in the `example/` directory to demonstrate how to apply the provided annotations.

@@ -14,7 +14,6 @@ It only provides the annotations consumed by Fiber code generators.
 - Define your data structure once
 - Automatically generate:
   - Firestore / Database models
-  - Public domain models (clean, Firebase-agnostic)
   - Typed Storage access helpers
   - Typed constants
   - fromMap / toMap mappings
